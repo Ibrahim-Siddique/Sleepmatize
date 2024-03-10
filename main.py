@@ -1,36 +1,6 @@
-import requests
 import os
 from sleepmatize.identitytoolkit import IdentityToolkitHelper
 from sleepmatize.mathmatize import MathmatizeHelper
-
-session = requests.Session()
-session.headers = {
-    "Origin": "https://mathmatize.com"
-}
-
-
-def fetch_courses():
-    r = session.get("https://mathmatize.com/api/mm/classes/my_memberships")
-    return r.json()
-
-
-def fetch_poll_sessions(course_id):
-    r = session.get(
-        f"https://mathmatize.com/api/mm/classes/{course_id}/student")
-    return r.json()
-
-
-def fetch_polls(topic_id, poll_sessions):
-    poll_ids = []
-    polls = []
-
-    for layout in poll_sessions["layout"][f"{topic_id}"].values():
-        poll_ids += layout
-
-    for poll_id in poll_ids:
-        polls.append(poll_sessions["tasks_by_id"][poll_id])
-
-    return polls
 
 
 def pick_option(options: list):
