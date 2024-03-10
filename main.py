@@ -1,41 +1,12 @@
 import requests
 import os
-import json
+from sleepmatize.identitytoolkit import IdentityToolkitHelper
+from sleepmatize.mathmatize import MathmatizeHelper
 
 session = requests.Session()
 session.headers = {
     "Origin": "https://mathmatize.com"
 }
-
-
-def login(email: str, password: str) -> str:
-    r = session.post(
-        "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=AIzaSyDlmqEmT_xyn91XrDmJqSlXTTnN_DcTFAk",
-        json={
-            "returnSecureToken": True,
-            "email": email,
-            "password": password,
-            "clientType": "CLIENT_TYPE_WEB"})
-
-    json_response = r.json()
-
-    session.headers["Authorization"] = "JWT " + json_response.get("idToken")
-
-    return json_response
-
-
-def refresh_token(refresh_token: str) -> str:
-    pass
-
-
-def store_credentials(credentials: dict, filename: str) -> bool:
-    try:
-        with open(filename, "w") as file:
-            json.dump(credentials, file, indent=4)
-
-        return True
-    finally:
-        return False
 
 
 def fetch_courses():
@@ -62,40 +33,44 @@ def fetch_polls(topic_id, poll_sessions):
     return polls
 
 
+def pick_option(options: list):
+    print("\nPlease pick a number from the list below:")
+    for index, option in enumerate(options):
+        print(f"{index + 1}.", option)
+
+    return options[int(input("> ")) - 1]
+
+
 if __name__ == "__main__":
     import dotenv
 
     dotenv.load_dotenv()
 
-    EMAIL = os.getenv("EMAIL")
-    PASSWORD = os.getenv("PASSWORD")
+    IDENTITY_TOOKLIT_API_KEY = os.getenv("IDENTITY_TOOLKIT_API_KEY")
+    MATHMATIZE_EMAIL = os.getenv("MATHMATIZE_EMAIL")
+    MATHMATIZE_PASSWORD = os.getenv("MATHMATIZE_PASSWORD")
 
-    credentials = login(EMAIL, PASSWORD)
-
-    store_credentials(credentials, ".credentials.json")
+    identity = IdentityToolkitHelper(IDENTITY_TOOKLIT_API_KEY)
+    credentials = identity.sign_in(MATHMATIZE_EMAIL, MATHMATIZE_PASSWORD)
 
     print(f"Logged in as {credentials.get('displayName')}")
 
-    courses = fetch_courses()
+    mathmatize_helper = MathmatizeHelper(identity)
 
-    for index, course in enumerate(courses):
-        print(f"{index + 1}.", course.get("classroom", {}).get("name"))
+    courses = mathmatize_helper.fetch_classes()
 
-    poll_sessions = fetch_poll_sessions(
-        courses[int(input("> ")) - 1]["classroom"]["id"])
+    course = pick_option(courses)
 
-    poll_topics = list(poll_sessions["topics_by_id"].values())
+    poll_sessions = mathmatize_helper.fetch_poll_sessions(course)
 
-    for index, poll_session in enumerate(poll_topics):
-        print(f"{index + 1}.", poll_session["name"])
+    poll_session = pick_option(poll_sessions)
 
-    polls = fetch_polls(
-        poll_topics[int(input("> ")) - 1]["id"], poll_sessions)
+    polls = mathmatize_helper.fetch_polls(course, poll_session)
 
     autoselected_poll = None
 
     for poll in polls:
-        if poll["target_due_date"] is None:
+        if poll.target_due_date is None:
             autoselected_poll = poll
             break
 
@@ -106,10 +81,6 @@ if __name__ == "__main__":
             autoselected_poll = None
 
     if autoselected_poll is None:
-        for index, poll in enumerate(polls):
-            print(f"{index + 1}.", poll)
-        poll_id = polls[int(input("> ")) - 1]['id']
+        poll_id = pick_option(polls).poll_uuid
     else:
-        poll_id = autoselected_poll["id"]
-
-    input("")
+        poll_id = autoselected_poll.poll_uuid
